@@ -88,16 +88,38 @@ public class ExamplePlugin extends Plugin {
         String dataToPrint = call.getString("dataToPrint");
         byte[] dataToPrint64 = Base64.getDecoder().decode(dataToPrint);
 
-        try(Socket socket = new Socket(host, 9100)){
-            OutputStream out = socket.getOutputStream();
+        int maxRetries = 7;  // Número máximo de intentos
+        int retryCount = 0;
+        int retryDelay = 2000;  // Tiempo de espera entre intentos (en milisegundos)
 
-            out.write(dataToPrint64);
+        while (retryCount < maxRetries) {
+            try(Socket socket = new Socket(host, 9100)){
+                OutputStream out = socket.getOutputStream();
 
-            out.flush();
+                out.write(dataToPrint64);
 
-            call.resolve();
-        }catch(IOException e){
-            call.reject("Error al imprimir: " + e.getMessage());
-        }
+                out.flush();
+
+                call.resolve();
+
+                return;
+            }catch(IOException e){
+                retryCount++;
+                if (retryCount >= maxRetries) {
+                    // Rechazar si se alcanza el número máximo de reintentos
+                    call.reject("Error al imprimir tras " + maxRetries + " intentos: " + e.getMessage());
+                    return;
+                }
+    
+                // Esperar un tiempo antes de intentar de nuevo
+                try {
+                    Thread.sleep(retryDelay);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    call.reject("Error al imprimir: " + ie.getMessage());
+                    return;
+                }
+            }
+        } 
     }
 }
